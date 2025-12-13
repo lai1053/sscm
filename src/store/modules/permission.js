@@ -18,6 +18,7 @@ function checkAuth(router, authInfo) {
     } else {
       if (metaInfo.permissions) {
         authInfo = { ...authInfo }
+        console.log('authInfo = ', authInfo)
         return forCheckPermission(metaInfo.permissions, authInfo)
       } else if (metaInfo.permissionList) { // 一个路由受多个权限判断
         for (let index = 0; index < metaInfo.permissionList.length; index++) {
@@ -194,8 +195,8 @@ const perfectRouter = function(authInfo, result) {
       routerObj[mainRouter.type] = accessedRouters
       addRouter = addRouter.concat(filterIgnoreRouter(accessedRouters))
     }
-
-    const rootRedirect = oceanRedirect || topRedirect || redirect
+    const defaultRoot = '/crm/workbench'
+    const rootRedirect = oceanRedirect || topRedirect || redirect || defaultRoot
     if (rootRedirect) {
       addRouter.push({
         path: '/',
