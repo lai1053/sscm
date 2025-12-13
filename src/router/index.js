@@ -12,6 +12,7 @@ import pmRouter from './modules/pm'
 import adminRouter from './modules/admin'
 import userRouter from './modules/user'
 import biRouter from './modules/bi'
+import oceanengineRouter from './modules/oceanengine'
 
 import taskExamineRouter from './modules/taskExamine'
 import workLogRouter from './modules/workLog'
@@ -48,33 +49,6 @@ export const constantRouterMap = [
     component: () => import('@/views/404'),
     hidden: true
   },
-  {
-    path: '/oceanengine',
-    component: Layout,
-    redirect: '/oceanengine/sales-dashboard',
-    children: [
-      {
-        path: 'sales-dashboard',
-        name: 'OceanengineSalesDashboard',
-        component: () => import('@/views/oceanengine/SalesDashboard'),
-        meta: {
-          title: '巨量仪表盘',
-          icon: 'board',
-          noAuth: true
-        }
-      },
-      {
-        path: 'customers',
-        name: 'OceanengineCustomersList',
-        component: () => import('@/views/oceanengine/CustomersList'),
-        meta: {
-          title: '客户列表',
-          icon: 'board',
-          noAuth: true
-        }
-      }
-    ]
-  },
   userRouter,
   {
     path: '*',
@@ -108,5 +82,6 @@ export const asyncRouterMap = [
   { type: 'bi', router: biRouter },
   { type: 'calendar', router: calendarRouter },
   { type: 'hrm', router: hrmRouter },
+  { type: 'oceanengine', router: oceanengineRouter },
   { type: 'manage', router: adminRouter }
 ]

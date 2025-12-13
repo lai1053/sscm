@@ -4,17 +4,6 @@ import {
 import Vue from 'vue'
 import { adminGroupsTypeListAPI } from '@/api/admin/role'
 
-const OCEANENGINE_BASE_PATH = '/oceanengine'
-const OCEANENGINE_DASHBOARD_PATH = '/oceanengine/sales-dashboard'
-
-const isOceanengineDashboard = function(router) {
-  if (!router) return false
-  if (router.name === 'OceanengineSalesDashboard') return true
-  if (!router.path) return false
-  const normalizedPath = router.path.startsWith('/') ? router.path : `/${router.path}`
-  return normalizedPath === OCEANENGINE_BASE_PATH || normalizedPath === OCEANENGINE_DASHBOARD_PATH
-}
-
 /**
  *
  * @param {*} router
@@ -73,13 +62,6 @@ const filterAsyncRouter = function(routers, authInfo) {
     const tmp = {
       ...router
     }
-    if (isOceanengineDashboard(tmp)) {
-      if (tmp.children) {
-        tmp.children = filterAsyncRouter(tmp.children, authInfo)
-      }
-      res.push(tmp)
-      return
-    }
     if (checkAuth(tmp, authInfo)) {
       if (tmp.children) {
         tmp.children = filterAsyncRouter(tmp.children, authInfo)
@@ -113,11 +95,11 @@ const filterIgnoreRouter = function(routers) {
 }
 
 /**
- * 获取巨量仪表盘的默认跳转
+ * 获取模块的默认跳转
  * @param {*} routers
  */
-const findOceanengineRedirect = function(routers) {
-  const target = (routers || []).find(item => item.path === '/oceanengine')
+const findModuleRedirect = function(routers, modulePath) {
+  const target = (routers || []).find(item => item.path === modulePath)
   if (!target) return ''
   if (target.redirect) return target.redirect
   if (target.children && target.children.length > 0) {
@@ -141,8 +123,8 @@ const perfectRouter = function(authInfo, result) {
     for (let index = 0; index < asyncRouterMap.length; index++) {
       const mainRouter = asyncRouterMap[index]
       const accessedRouters = filterAsyncRouter(mainRouter.router, authInfo)
-      if (!oceanRedirect && mainRouter.type === 'manage') {
-        oceanRedirect = findOceanengineRedirect(accessedRouters)
+      if (!oceanRedirect && mainRouter.type === 'oceanengine') {
+        oceanRedirect = findModuleRedirect(accessedRouters, '/oceanengine')
       }
       for (let childIndex = 0; childIndex < accessedRouters.length; childIndex++) {
         const element = accessedRouters[childIndex]
@@ -190,7 +172,8 @@ const perfectRouter = function(authInfo, result) {
               project: 'project',
               bi: 'bi',
               calendar: 'calendar',
-              hrm: 'hrm'
+              hrm: 'hrm',
+              oceanengine: 'oceanengine'
             }[authInfo.wkFirstModel]
             if (modelName == mainRouter.type) {
               topRedirect = element.redirect
@@ -269,7 +252,8 @@ const permission = {
     projectRouters: [],
     biRouters: [],
     manageRouters: [],
-    hrmRouters: []
+    hrmRouters: [],
+    oceanengineRouters: []
   },
   mutations: {
     SET_ROUTERS: (state, data) => {
@@ -282,6 +266,7 @@ const permission = {
       state.biRouters = data.router.bi || []
       state.manageRouters = data.router.manage || []
       state.hrmRouters = data.router.hrm || []
+      state.oceanengineRouters = data.router.oceanengine || []
     },
 
     /**
