@@ -106,6 +106,7 @@ import NavManager from './NavManager'
 import { mapGetters, mapState } from 'vuex'
 import { Loading } from 'element-ui'
 import { on, off } from '@/utils/dom'
+import { buildModuleRegistry, DEFAULT_HEADER_ORDER } from '@/config/module-registry'
 
 export default {
   components: {
@@ -152,6 +153,7 @@ export default {
       'oa',
       'project',
       'hrm',
+      'oceanengine',
       'navActiveIndex',
       'collapse',
       'headerModule',
@@ -186,95 +188,7 @@ export default {
       }]
     },
     allItemsObj() {
-      var tempsItems = {}
-      if (this.crm) {
-        tempsItems.crm = {
-          title: '客户管理',
-          type: 1,
-          module: 'crm',
-          path: '/crm',
-          icon: 'wk wk-customer',
-          fontSize: '17px'
-        }
-      }
-
-      if (this.oa && this.oa.taskExamine) {
-        tempsItems.taskExamine = {
-          title: '任务/审批',
-          type: 4,
-          module: 'taskExamine',
-          path: '/taskExamine',
-          icon: 'wk wk-office',
-          fontSize: '16px'
-        }
-      }
-
-      if (this.oa && this.oa.log) {
-        tempsItems.log = {
-          title: '日志',
-          type: 3,
-          module: 'log',
-          path: '/workLog',
-          icon: 'wk wk-log',
-          fontSize: '17px'
-        }
-      }
-
-      if (this.oa && this.oa.book) {
-        tempsItems.book = {
-          title: '通讯录',
-          type: 6,
-          module: 'book',
-          path: '/addressBook',
-          icon: 'wk wk-address-book',
-          fontSize: '17px'
-        }
-      }
-
-      if (this.project) {
-        tempsItems.project = {
-          title: '项目管理',
-          type: 2,
-          module: 'project',
-          path: '/project',
-          icon: 'wk wk-project',
-          fontSize: '15px'
-        }
-      }
-
-      if (this.bi) {
-        tempsItems.bi = {
-          title: '商业智能',
-          type: 5,
-          path: '/bi',
-          module: 'bi',
-          icon: 'wk wk-business-intelligence',
-          fontSize: '18px'
-        }
-      }
-
-      if (this.oa && this.oa.calendar) {
-        tempsItems.calendar = {
-          title: '日历',
-          type: 8,
-          module: 'calendar',
-          path: '/calendar/index',
-          icon: 'wk wk-calendar',
-          fontSize: '20px'
-        }
-      }
-
-      if (this.moduleAuth && this.moduleAuth.hrm) {
-        tempsItems.hrm = {
-          title: '人力资源',
-          type: 11,
-          module: 'hrm',
-          path: '/hrm',
-          icon: 'wk wk-employees'
-        }
-      }
-
-      return tempsItems
+      return buildModuleRegistry((key) => this.isModuleEnabled(key))
     }
   },
   watch: {
@@ -356,11 +270,12 @@ export default {
      * 根据关键词获取菜单数据
      */
     getTopHeaderModule() {
+      const availableItems = this.allItemsObj || {}
       if (this.headerModule.length > 0) {
         const allList = []
         for (let index = 0; index < this.headerModule.length; index++) {
           const key = this.headerModule[index]
-          const menu = this.allItemsObj[key]
+          const menu = availableItems[key]
           if (menu && allList.length < 8) {
             allList.push(menu)
           }
@@ -368,9 +283,17 @@ export default {
         this.items = allList
       } else {
         const allList = []
-        for (const key in this.allItemsObj) {
-          if (allList.length < 8) {
-            allList.push(this.allItemsObj[key])
+        DEFAULT_HEADER_ORDER.forEach(key => {
+          const menu = availableItems[key]
+          if (menu && allList.length < 8) {
+            allList.push(menu)
+          }
+        })
+        if (allList.length < 8) {
+          for (const key in availableItems) {
+            if (allList.length < 8 && !DEFAULT_HEADER_ORDER.includes(key)) {
+              allList.push(availableItems[key])
+            }
           }
         }
         this.items = allList
@@ -423,6 +346,33 @@ export default {
       }
       this.$store.commit('SET_NAVACTIVEINDEX', path)
       this.$emit('nav-items-click', path)
+    },
+
+    isModuleEnabled(key) {
+      const toggleOn = this.moduleAuth && Object.prototype.hasOwnProperty.call(this.moduleAuth, key) ? this.moduleAuth[key] : true
+      if (!toggleOn) return false
+      switch (key) {
+        case 'crm':
+          return !!this.crm
+        case 'taskExamine':
+          return this.oa && this.oa.taskExamine
+        case 'log':
+          return this.oa && this.oa.log
+        case 'book':
+          return this.oa && this.oa.book
+        case 'project':
+          return !!this.project
+        case 'bi':
+          return !!this.bi
+        case 'calendar':
+          return this.oa && this.oa.calendar
+        case 'hrm':
+          return this.moduleAuth && this.moduleAuth.hrm
+        case 'oceanengine':
+          return !!this.oceanengine && (this.moduleAuth ? this.moduleAuth.oceanengine !== false : true)
+        default:
+          return true
+      }
     },
 
     /**
@@ -779,4 +729,3 @@ export default {
   }
 }
 </style>
-

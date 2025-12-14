@@ -152,7 +152,7 @@ export default {
       this.$store
         .dispatch('Login', this.form)
         .then(res => {
-          const target = this.redirect ? { path: this.redirect } : { name: 'OceanengineSalesDashboard' }
+          const target = this.redirect ? { path: this.redirect } : { path: '/' }
           this.$router.push(target)
         })
         .catch(() => {

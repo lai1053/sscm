@@ -37,7 +37,8 @@ const user = {
     manage: {}, // 管理后台
     oa: {}, // 办公
     project: {}, // 项目管理
-    hrm: {} // 人力资源
+    hrm: {}, // 人力资源
+    oceanengine: {} // 巨量引擎
   },
 
   mutations: {
@@ -65,6 +66,9 @@ const user = {
     },
     SET_HRM: (state, hrm) => {
       state.hrm = hrm
+    },
+    SET_OCEANENGINE: (state, oceanengine) => {
+      state.oceanengine = oceanengine
     },
     SET_AUTH: (state, data) => {
       const token = data.adminToken
@@ -116,6 +120,7 @@ const user = {
           commit('SET_OA', data.oa)
           commit('SET_PROJECT', data.project)
           commit('SET_HRM', data.hrm)
+          commit('SET_OCEANENGINE', data.oceanengine)
 
           // 获取 管理后台 员工和部门信息
           dispatch('GetUserList')

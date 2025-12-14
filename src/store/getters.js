@@ -44,6 +44,7 @@ const getters = {
   oa: state => state.user.oa,
   project: state => state.user.project,
   hrm: state => state.user.hrm,
+  oceanengine: state => state.user.oceanengine,
 
   // 路由
   addRouters: state => state.permission.addRouters,
@@ -55,6 +56,7 @@ const getters = {
   biRouters: state => state.permission.biRouters,
   manageRouters: state => state.permission.manageRouters,
   hrmRouters: state => state.permission.hrmRouters,
+  oceanengineRouters: state => state.permission.oceanengineRouters,
 
   // 客户管理信息
   messageNum: state => state.crm.messageNum,

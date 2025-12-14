@@ -1,5 +1,5 @@
 /** 巨量引擎路由 */
-import Layout from '@/views/layout/AdminLayout'
+import Layout from '@/views/layout/OceanengineLayout'
 
 const layout = function(meta = {}, path = '/oceanengine') {
   return {
