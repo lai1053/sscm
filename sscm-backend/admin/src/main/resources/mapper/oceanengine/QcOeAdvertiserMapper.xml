@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.kakarote.admin.oceanengine.mapper.QcOeAdvertiserMapper">
+
+    <select id="listAdvertisersBySaleUser" resultType="com.kakarote.admin.oceanengine.model.SalesAdvertiserVO">
+        SELECT
+            advertiser_id AS advertiserId,
+            advertiser_name AS advertiserName,
+            channel,
+            first_agent_name AS firstAgentName,
+            adv_company_id AS advCompanyId,
+            adv_company_name AS advCompanyName,
+            first_industry_name AS firstIndustryName,
+            second_industry_name AS secondIndustryName,
+            advertiser_status AS advertiserStatus,
+            last_sync_time AS lastSyncTime
+        FROM wk_qc_oe_advertiser
+        WHERE is_deleted = 0
+        <if test="saleUserIds != null">
+            <if test="saleUserIds.size() > 0">
+                AND sale_user_id IN
+                <foreach collection="saleUserIds" item="id" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </if>
+        </if>
+        <if test="channel != null and channel != ''">
+            AND channel = #{channel}
+        </if>
+        ORDER BY last_sync_time DESC, advertiser_id DESC
+    </select>
+
+    <sql id="adsCostSubquery">
+        SELECT advertiser_id, SUM(stat_cost) AS cost
+        FROM wk_qc_oe_ads_advertiser_daily
+        WHERE stat_date BETWEEN #{startDate} AND #{endDate}
+        GROUP BY advertiser_id
+    </sql>
+
+    <sql id="qcCostSubquery">
+        SELECT advertiser_id, SUM(stat_cost) AS cost
+        FROM wk_qc_oe_qc_advertiser_daily
+        WHERE stat_date BETWEEN #{startDate} AND #{endDate}
+        GROUP BY advertiser_id
+    </sql>
+
+    <sql id="channelFilter">
+        <choose>
+            <when test="channel != null and channel != '' and channel != 'ALL'">
+                AND a.channel = #{channel}
+            </when>
+            <otherwise>
+                AND a.channel IN ('ADS','QIANCHUAN')
+            </otherwise>
+        </choose>
+    </sql>
+
+    <sql id="accountSourceFilter">
+        <if test="accountSource != null and accountSource != '' and accountSource != 'ALL'">
+            AND (a.channel != 'ADS' OR a.account_source = #{accountSource})
+        </if>
+    </sql>
+
+    <select id="listSalesDashboard" resultType="com.kakarote.admin.oceanengine.model.SalesDashboardSaleVO">
+        SELECT
+            su.id AS saleUserId,
+            su.sale_id AS saleId,
+            su.sale_name AS saleName,
+            su.login_user_id AS crmUserId,
+            au.realname AS crmRealname,
+            COUNT(DISTINCT a.advertiser_id) AS advertiserCount,
+            COUNT(DISTINCT a.adv_company_id) AS companyCount,
+            IFNULL(SUM(CASE WHEN a.channel = 'ADS' THEN IFNULL(ads.cost, 0) ELSE 0 END), 0) AS adsCost,
+            IFNULL(SUM(CASE WHEN a.channel = 'QIANCHUAN' THEN IFNULL(qc.cost, 0) ELSE 0 END), 0) AS qcCost,
+            IFNULL(SUM(IFNULL(ads.cost, 0) + IFNULL(qc.cost, 0)), 0) AS totalCost
+        FROM wk_qc_oe_advertiser a
+        LEFT JOIN wk_qc_oe_sale_user su ON su.id = a.sale_user_id AND su.is_deleted = 0
+        LEFT JOIN wk_admin_user au ON su.login_user_id = au.user_id
+        LEFT JOIN (<include refid="adsCostSubquery"/>) ads ON ads.advertiser_id = a.advertiser_id
+        LEFT JOIN (<include refid="qcCostSubquery"/>) qc ON qc.advertiser_id = a.advertiser_id
+        WHERE a.is_deleted = 0
+          AND a.sale_user_id IS NOT NULL
+          <include refid="channelFilter"/>
+          <include refid="accountSourceFilter"/>
+        GROUP BY su.id, su.sale_id, su.sale_name, su.login_user_id, au.realname
+        ORDER BY totalCost DESC, su.id DESC
+    </select>
+
+    <select id="listCompanyDashboard" resultType="com.kakarote.admin.oceanengine.model.SalesDashboardCompanyVO">
+        SELECT
+            a.sale_user_id AS saleUserId,
+            su.sale_name AS saleName,
+            a.adv_company_id AS advCompanyId,
+            a.adv_company_name AS advCompanyName,
+            co.id AS ownerId,
+            co.owner_name AS ownerName,
+            MAX(a.last_cost_date) AS lastCostDate,
+            COUNT(DISTINCT a.advertiser_id) AS advertiserCount,
+            IFNULL(SUM(CASE WHEN a.channel = 'ADS' THEN IFNULL(ads.cost, 0) ELSE 0 END), 0) AS adsCost,
+            IFNULL(SUM(CASE WHEN a.channel = 'QIANCHUAN' THEN IFNULL(qc.cost, 0) ELSE 0 END), 0) AS qcCost,
+            IFNULL(SUM(IFNULL(ads.cost, 0) + IFNULL(qc.cost, 0)), 0) AS totalCost
+        FROM wk_qc_oe_advertiser a
+        LEFT JOIN wk_qc_oe_sale_user su ON su.id = a.sale_user_id AND su.is_deleted = 0
+        LEFT JOIN wk_qc_customer_owner co ON co.id = a.owner_id AND co.is_deleted = 0
+        LEFT JOIN (<include refid="adsCostSubquery"/>) ads ON ads.advertiser_id = a.advertiser_id
+        LEFT JOIN (<include refid="qcCostSubquery"/>) qc ON qc.advertiser_id = a.advertiser_id
+        WHERE a.is_deleted = 0
+          <if test="saleUserIds != null">
+            <if test="saleUserIds.size() > 0">
+              AND a.sale_user_id IN
+              <foreach collection="saleUserIds" item="id" open="(" separator="," close=")">
+                #{id}
+              </foreach>
+            </if>
+          </if>
+          AND a.adv_company_id IS NOT NULL
+          <include refid="channelFilter"/>
+          <include refid="accountSourceFilter"/>
+        GROUP BY a.sale_user_id, su.sale_name, a.adv_company_id, a.adv_company_name, co.id, co.owner_name
+        ORDER BY totalCost DESC, a.adv_company_id DESC
+    </select>
+
+    <select id="listAdvertiserDashboard" resultType="com.kakarote.admin.oceanengine.model.SalesDashboardAdvertiserVO">
+        SELECT
+            a.sale_user_id AS saleUserId,
+            su.sale_name AS saleName,
+            a.adv_company_id AS advCompanyId,
+            a.adv_company_name AS advCompanyName,
+            a.advertiser_id AS advertiserId,
+            a.advertiser_name AS advertiserName,
+            a.channel,
+            a.account_source AS accountSource,
+            a.last_cost_date AS lastCostDate,
+            IFNULL(CASE WHEN a.channel = 'ADS' THEN ads.cost ELSE NULL END, 0) AS adsCost,
+            IFNULL(CASE WHEN a.channel = 'QIANCHUAN' THEN qc.cost ELSE NULL END, 0) AS qcCost,
+            IFNULL(IFNULL(ads.cost, 0) + IFNULL(qc.cost, 0), 0) AS totalCost
+        FROM wk_qc_oe_advertiser a
+        LEFT JOIN wk_qc_oe_sale_user su ON su.id = a.sale_user_id AND su.is_deleted = 0
+        LEFT JOIN (<include refid="adsCostSubquery"/>) ads ON ads.advertiser_id = a.advertiser_id
+        LEFT JOIN (<include refid="qcCostSubquery"/>) qc ON qc.advertiser_id = a.advertiser_id
+        WHERE a.is_deleted = 0
+          <if test="saleUserIds != null">
+            <if test="saleUserIds.size() > 0">
+              AND a.sale_user_id IN
+              <foreach collection="saleUserIds" item="id" open="(" separator="," close=")">
+                #{id}
+              </foreach>
+            </if>
+          </if>
+          AND a.adv_company_id = #{advCompanyId}
+          <include refid="channelFilter"/>
+          <include refid="accountSourceFilter"/>
+        ORDER BY totalCost DESC, a.advertiser_id DESC
+    </select>
+
+    <select id="listAccountSourceSummary" resultType="com.kakarote.admin.oceanengine.model.AccountSourceSummaryVO">
+        SELECT
+            a.account_source AS accountSource,
+            COUNT(DISTINCT a.adv_company_id) AS companyCount,
+            COUNT(*) AS advertiserCount,
+            SUM(CASE WHEN a.sale_user_id IS NULL THEN 1 ELSE 0 END) AS unassignedAdvertiserCount,
+            COUNT(DISTINCT CASE WHEN a.sale_user_id IS NULL THEN a.adv_company_id END) AS unassignedCompanyCount
+        FROM wk_qc_oe_advertiser a
+        WHERE a.is_deleted = 0
+          AND a.channel = 'ADS'
+          AND a.account_source IN ('AD','STAR','LUBAN','DOMESTIC','LOCAL')
+        GROUP BY a.account_source
+        UNION ALL
+        SELECT
+            'QIANCHUAN' AS accountSource,
+            COUNT(DISTINCT a.adv_company_id) AS companyCount,
+            COUNT(*) AS advertiserCount,
+            SUM(CASE WHEN a.sale_user_id IS NULL THEN 1 ELSE 0 END) AS unassignedAdvertiserCount,
+            COUNT(DISTINCT CASE WHEN a.sale_user_id IS NULL THEN a.adv_company_id END) AS unassignedCompanyCount
+        FROM wk_qc_oe_advertiser a
+        WHERE a.is_deleted = 0
+          AND a.channel = 'QIANCHUAN'
+        ORDER BY accountSource
+    </select>
+
+    <update id="updateLastCostDateIfNewer">
+        UPDATE wk_qc_oe_advertiser
+        SET last_cost_date = CASE
+            WHEN last_cost_date IS NULL OR last_cost_date &lt; #{statDate}
+                THEN #{statDate}
+            ELSE last_cost_date
+            END
+        WHERE advertiser_id = #{advertiserId}
+          AND is_deleted = 0
+    </update>
+
+    <select id="listCompanyCostForOverview" resultType="com.kakarote.admin.oceanengine.model.SalesOverviewCompanyRow">
+        SELECT
+            a.adv_company_id AS advCompanyId,
+            SUM(CASE WHEN a.channel = 'ADS' THEN IFNULL(dads.stat_cost, 0) ELSE 0 END) AS adsCost,
+            SUM(CASE WHEN a.channel = 'QIANCHUAN' THEN IFNULL(dqc.stat_cost, 0) ELSE 0 END) AS qcCost,
+            SUM(IFNULL(dads.stat_cost, 0) + IFNULL(dqc.stat_cost, 0)) AS totalCost,
+            COUNT(DISTINCT a.advertiser_id) AS advertiserCount
+        FROM wk_qc_oe_advertiser a
+        LEFT JOIN wk_qc_oe_ads_advertiser_daily dads
+            ON a.advertiser_id = dads.advertiser_id
+           AND dads.stat_date BETWEEN #{startDate} AND #{endDate}
+        LEFT JOIN wk_qc_oe_qc_advertiser_daily dqc
+            ON a.advertiser_id = dqc.advertiser_id
+           AND dqc.stat_date BETWEEN #{startDate} AND #{endDate}
+        WHERE a.is_deleted = 0
+          AND a.adv_company_id IS NOT NULL
+          <if test="channel != null and channel != 'ALL'">
+            AND a.channel = #{channel}
+          </if>
+          <if test="accountSource != null and accountSource != 'ALL'">
+            AND a.account_source = #{accountSource}
+          </if>
+          <if test="saleUserIds != null">
+            <if test="saleUserIds.size() > 0">
+              AND a.sale_user_id IN
+              <foreach collection="saleUserIds" item="id" open="(" separator="," close=")">
+                #{id}
+              </foreach>
+            </if>
+          </if>
+        GROUP BY a.adv_company_id
+    </select>
+
+    <select id="listCompanyLastCostDate" resultType="com.kakarote.admin.oceanengine.model.CompanyLastCostRow">
+        SELECT
+            a.adv_company_id AS advCompanyId,
+            MAX(a.last_cost_date) AS lastCostDate
+        FROM wk_qc_oe_advertiser a
+        WHERE a.is_deleted = 0
+          AND a.adv_company_id IS NOT NULL
+          <if test="channel != null and channel != 'ALL'">
+            AND a.channel = #{channel}
+          </if>
+          <if test="accountSource != null and accountSource != 'ALL'">
+            AND a.account_source = #{accountSource}
+          </if>
+          <if test="saleUserIds != null">
+            <if test="saleUserIds.size() > 0">
+              AND a.sale_user_id IN
+              <foreach collection="saleUserIds" item="id" open="(" separator="," close=")">
+                #{id}
+              </foreach>
+            </if>
+          </if>
+        GROUP BY a.adv_company_id
+    </select>
+
+    <select id="listCustomerTrend" resultType="com.kakarote.admin.oceanengine.model.CustomerTrendPointVO">
+        SELECT
+            d.stat_date AS statDate,
+            IFNULL(SUM(d.ads_cost), 0) AS adsCost,
+            IFNULL(SUM(d.qc_cost), 0) AS qcCost,
+            IFNULL(SUM(d.ads_cost + d.qc_cost), 0) AS totalCost
+        FROM (
+            SELECT
+                dads.stat_date,
+                dads.stat_cost AS ads_cost,
+                0 AS qc_cost
+            FROM wk_qc_oe_advertiser a
+            JOIN wk_qc_oe_ads_advertiser_daily dads ON dads.advertiser_id = a.advertiser_id
+            WHERE a.is_deleted = 0
+              AND a.adv_company_id = #{advCompanyId}
+              <if test="channel != null and channel != 'ALL'">
+                AND a.channel = #{channel}
+              </if>
+              <if test="accountSource != null and accountSource != 'ALL'">
+                AND a.account_source = #{accountSource}
+              </if>
+              AND dads.stat_date BETWEEN #{startDate} AND #{endDate}
+            UNION ALL
+            SELECT
+                dqc.stat_date,
+                0 AS ads_cost,
+                dqc.stat_cost AS qc_cost
+            FROM wk_qc_oe_advertiser a
+            JOIN wk_qc_oe_qc_advertiser_daily dqc ON dqc.advertiser_id = a.advertiser_id
+            WHERE a.is_deleted = 0
+              AND a.adv_company_id = #{advCompanyId}
+              <if test="channel != null and channel != 'ALL'">
+                AND a.channel = #{channel}
+              </if>
+              <if test="accountSource != null and accountSource != 'ALL'">
+                AND a.account_source = #{accountSource}
+              </if>
+              AND dqc.stat_date BETWEEN #{startDate} AND #{endDate}
+        ) d
+        GROUP BY d.stat_date
+        ORDER BY d.stat_date ASC
+    </select>
+
+</mapper>

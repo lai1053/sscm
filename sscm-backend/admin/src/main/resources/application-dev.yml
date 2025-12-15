@@ -1,0 +1,27 @@
+spring:
+  redis:
+    host: ${REDIS_HOST:127.0.0.1}
+    port: ${REDIS_PORT:6380}
+    password: ${REDIS_PASSWORD:123456}
+    database: 12
+    lettuce:
+      pool:
+        max-active: 300
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3307/wk_crm_single?characterEncoding=utf8&useSSL=false&zeroDateTimeBehavior=convertToNull&tinyInt1isBit=false&serverTimezone=Asia/Shanghai&useAffectedRows=true
+    username: root
+    password: 123456
+  elasticsearch:
+    rest:
+      uris: 127.0.0.1:9200
+      username:
+      password:
+  server:
+    port: 53089
+  oceanengine:
+    base-url: https://api.oceanengine.com/open_api
+    ads-base-url: https://api.oceanengine.com
+    qc-base-url: https://ad.oceanengine.com
+    access-token: 06080cd3f9306820b5affad843a8b41c9cdef35b   # 先手填，你后面可以做刷新逻辑
+    primary-agent-id: 1740289670292493                      # 比如“本地推-广州声势传媒广告有限公司”这个为主
+    page-size: 100
