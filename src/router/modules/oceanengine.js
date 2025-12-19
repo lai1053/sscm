@@ -7,6 +7,7 @@ const layout = function(meta = {}, path = '/oceanengine') {
     component: Layout,
     meta: {
       requiresAuth: true,
+      icon: 'performance',
       ...meta
     }
   }
@@ -17,7 +18,7 @@ export default [
     ...layout({
       permissions: ['oceanengine'],
       title: '巨量引擎',
-      icon: 'monitor'
+      icon: 'performance'
     }),
     redirect: '/oceanengine/sales-dashboard',
     children: [
@@ -26,7 +27,8 @@ export default [
         name: 'OceanEngineSalesDashboard',
         component: () => import('@/views/oceanengine/SalesDashboard'),
         meta: {
-          title: '销售仪表盘'
+          title: '销售仪表盘',
+          icon: 'board'
         }
       },
       {
@@ -34,7 +36,19 @@ export default [
         name: 'OceanEngineCustomerList',
         component: () => import('@/views/oceanengine/CustomersList'),
         meta: {
-          title: '巨量客户管理'
+          title: '巨量客户管理',
+          icon: 'customer'
+        }
+      },
+      {
+        path: 'customer-owner',
+        name: 'OceanEngineCustomerOwner',
+        component: () => import('@/views/oceanengine/CustomerOwner'),
+        meta: {
+          title: '客户归属',
+          icon: 'customer',
+          permissions: ['manage'],
+          adminOnly: true
         }
       }
     ]

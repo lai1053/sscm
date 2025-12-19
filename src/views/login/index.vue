@@ -15,11 +15,11 @@
           客户关系管理的前沿创新
         </h2>
         <div class="desc">
-          悟空CRM已涉及教育业、制造业、服务业、金融业、政府机构等10多种<br>
+          声势 CRM 已涉及教育业、制造业、服务业、金融业、政府机构等10多种<br>
           行业解决方案，全面帮助企业进行信息化建设
         </div>
         <img
-          src="~@/assets/login/main_pic.png"
+          src="~@/assets/login/main_pic_ss.jpg"
           alt=""
           class="main-pic">
       </div>

@@ -18,18 +18,8 @@
             size="small"
             class="filter-item narrow"
             @change="handleCustomWindowChange" />
-          <el-select v-model="filters.channel" placeholder="渠道" size="small" class="filter-item" @change="handleFilterChange">
-            <el-option label="全部渠道" value="ALL" />
-            <el-option label="巨量ADS" value="ADS" />
-            <el-option label="千川" value="QIANCHUAN" />
-          </el-select>
-          <el-select v-model="filters.accountSource" :disabled="filters.channel !== 'ADS'" placeholder="账户来源" size="small" class="filter-item" @change="handleFilterChange">
-            <el-option label="全部来源" value="ALL" />
-            <el-option label="AD" value="AD" />
-            <el-option label="LOCAL" value="LOCAL" />
-            <el-option label="STAR" value="STAR" />
-            <el-option label="LUBAN" value="LUBAN" />
-            <el-option label="DOMESTIC" value="DOMESTIC" />
+          <el-select v-model="filters.productLine" placeholder="产品线" size="small" class="filter-item" @change="handleFilterChange">
+            <el-option v-for="item in productLineOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
           <el-switch
             v-model="filters.onlySelf"
@@ -55,10 +45,10 @@
       <el-col :span="6">
         <el-card v-loading="overviewLoading" shadow="never" class="kpi-card">
           <div class="kpi-title">近 {{ overview.windowDays || effectiveWindow }} 天总消耗</div>
-          <div class="kpi-value">{{ formatAmount(overview.totalCost) }}</div>
+          <div class="kpi-value">{{ formatAmount(aggregatedOverview.totalCost) }}</div>
           <div class="kpi-meta">{{ formatRange(overview) || '数据准备中' }}</div>
-          <div :class="`is-${changeType(overview.totalCost, overview.prevTotalCost)}`" class="kpi-change">
-            对比上期：{{ formatRate(overview.totalCost, overview.prevTotalCost) }}
+          <div :class="`is-${changeType(aggregatedOverview.totalCost, aggregatedOverview.prevTotalCost)}`" class="kpi-change">
+            对比上期：{{ formatRate(aggregatedOverview.totalCost, aggregatedOverview.prevTotalCost) }}
           </div>
         </el-card>
       </el-col>
@@ -68,33 +58,75 @@
           <div class="risk-row">
             <div class="risk-pill success">
               <span class="label">活跃</span>
-              <span class="value">{{ overview.activeCompanyCount || 0 }}</span>
+              <span class="value is-link" @click.stop="openCustomerDialog('health', 'ACTIVE')">{{ overview.activeCompanyCount || 0 }}</span>
             </div>
             <div class="risk-pill warn">
               <span class="label">预警</span>
-              <span class="value">{{ overview.warnCompanyCount || 0 }}</span>
+              <span class="value is-link" @click.stop="openCustomerDialog('health', 'WARN')">{{ overview.warnCompanyCount || 0 }}</span>
             </div>
             <div class="risk-pill danger">
               <span class="label">危险</span>
-              <span class="value">{{ overview.dangerCompanyCount || 0 }}</span>
+              <span class="value is-link" @click.stop="openCustomerDialog('health', 'DANGER')">{{ overview.dangerCompanyCount || 0 }}</span>
             </div>
           </div>
-          <div class="kpi-subtext">{{ channelLabel }} · {{ accountSourceLabel }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card v-loading="overviewLoading" shadow="never" class="kpi-card">
           <div class="kpi-title">客户 / 广告主数</div>
-          <div class="kpi-value">{{ overview.totalCompanyCount || 0 }}</div>
+          <div class="kpi-value">{{ aggregatedOverview.totalCompanyCount || 0 }}</div>
           <div class="kpi-meta">公司数</div>
-          <div class="kpi-subtext">广告主 {{ overview.totalAdvertiserCount || 0 }}</div>
+          <div class="kpi-subtext">广告主 {{ aggregatedOverview.totalAdvertiserCount || 0 }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card v-loading="overviewLoading" shadow="never" class="kpi-card">
           <div class="kpi-title">下滑客户</div>
-          <div class="kpi-value">{{ overview.downCompanyCount || 0 }}</div>
+          <div class="kpi-value is-link" @click.stop="openCustomerDialog('down')">{{ overview.downCompanyCount || 0 }}</div>
           <div class="kpi-subtext">近 {{ overview.windowDays || effectiveWindow }} 天消耗下滑超过 10% 的客户数</div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="16" class="kpi-row">
+      <el-col :span="8">
+        <el-card v-loading="selfOverviewLoading" shadow="never" class="kpi-card">
+          <div class="kpi-title">我的消耗（全部产品线）</div>
+          <div class="kpi-value">{{ formatAmount(selfOverview.totalCost) }}</div>
+          <div class="kpi-meta">AD：{{ formatAmount(adsDisplayCost(selfOverview, 'ALL')) }} · 千川：{{ formatAmount(qcDisplayCost(selfOverview)) }}</div>
+          <div :class="`kpi-change is-${changeType(selfOverview.totalCost, selfOverview.prevTotalCost)}`">
+            环比：{{ formatRate(selfOverview.totalCost, selfOverview.prevTotalCost) }}
+          </div>
+          <div class="kpi-subtext yoy-text">
+            <el-tooltip content="接口暂未提供同比口径" placement="top">
+              <span>同比：--</span>
+            </el-tooltip>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="16">
+        <el-card v-loading="lineOverviewLoading" shadow="never" class="kpi-card">
+          <div class="kpi-title">账户级别（按产品线）环比</div>
+          <el-table :data="lineOverviewList" border size="mini" class="overview-table">
+            <el-table-column type="index" label="序号" width="60" :index="overviewIndex" />
+            <el-table-column prop="label" label="产品线" width="120" />
+            <el-table-column label="本期消耗" min-width="140">
+              <template slot-scope="scope">{{ formatAmount(scope.row.current) }}</template>
+            </el-table-column>
+            <el-table-column label="上期消耗" min-width="140">
+              <template slot-scope="scope">{{ formatAmount(scope.row.previous) }}</template>
+            </el-table-column>
+            <el-table-column label="环比" width="110">
+              <template slot-scope="scope">{{ formatRate(scope.row.current, scope.row.previous) }}</template>
+            </el-table-column>
+            <el-table-column label="同比" width="110">
+              <template>
+                <el-tooltip content="接口暂未提供同比口径" placement="top">
+                  <span class="yoy-text">--</span>
+                </el-tooltip>
+              </template>
+            </el-table-column>
+          </el-table>
         </el-card>
       </el-col>
     </el-row>
@@ -103,7 +135,7 @@
       <div slot="header" class="card-header">
         <div>
           <span>销售 → 公司 → 广告主</span>
-          <span class="header-ctx">（{{ windowLabel }} · {{ channelLabel }} · {{ accountSourceLabel }}）</span>
+          <span class="header-ctx">（{{ windowLabel }} · {{ productLineLabel }}）</span>
         </div>
         <div class="actions">
           <el-button type="text" size="mini" @click="navigateToCustomers">客户列表</el-button>
@@ -115,12 +147,14 @@
           <div class="table-title">销售</div>
           <el-table
             v-loading="salesLoading"
-            :data="sales"
+            :data="pagedSales"
+            row-key="saleUserId"
             :row-class-name="saleRowClass"
             border
             size="mini"
             highlight-current-row
             @row-click="handleSaleRowClick">
+            <el-table-column type="index" label="序号" width="60" :index="salesIndex" />
             <el-table-column label="销售" min-width="150">
               <template slot-scope="scope">
                 <div class="main-text">{{ scope.row.saleName || '-' }}</div>
@@ -129,8 +163,11 @@
             </el-table-column>
             <el-table-column prop="companyCount" label="公司" width="70" />
             <el-table-column prop="advertiserCount" label="广告主" width="80" />
-            <el-table-column label="ADS" width="90">
+            <el-table-column label="AD" width="90">
               <template slot-scope="scope">{{ formatAmount(scope.row.adsCost) }}</template>
+            </el-table-column>
+            <el-table-column label="本地推" width="90">
+              <template slot-scope="scope">{{ formatAmount(scope.row.localCost) }}</template>
             </el-table-column>
             <el-table-column label="千川" width="90">
               <template slot-scope="scope">{{ formatAmount(scope.row.qcCost) }}</template>
@@ -138,7 +175,20 @@
             <el-table-column label="总消耗" width="100">
               <template slot-scope="scope">{{ formatAmount(scope.row.totalCost) }}</template>
             </el-table-column>
+            <el-table-column label="业绩趋势" width="90">
+              <template slot-scope="scope">
+                <el-button type="text" size="mini" @click.stop="openSaleTrend(scope.row)">查看</el-button>
+              </template>
+            </el-table-column>
           </el-table>
+          <div class="table-footer">
+            <el-pagination
+              layout="prev, pager, next"
+              :current-page.sync="pagination.sales.currentPage"
+              :page-size="pagination.sales.pageSize"
+              :total="sales.length"
+              @current-change="handleSalesPageChange" />
+          </div>
         </el-col>
 
         <el-col :span="8">
@@ -148,24 +198,32 @@
           </div>
           <el-table
             v-loading="companyLoading"
-            :data="filteredCompanies"
+            :data="pagedCompanies"
+            row-key="_rowKey"
             :row-class-name="companyRowClass"
             border
             size="mini"
             highlight-current-row
             @row-click="handleCompanyRowClick">
+            <el-table-column type="index" label="序号" width="60" :index="companyIndex" />
             <el-table-column prop="advCompanyName" label="公司" min-width="150" />
             <el-table-column prop="ownerName" label="客户归属" min-width="110">
               <template slot-scope="scope">{{ scope.row.ownerName || '-' }}</template>
             </el-table-column>
-            <el-table-column label="ADS" width="90">
-              <template slot-scope="scope">{{ formatAmount(scope.row.adsCost) }}</template>
+            <el-table-column label="产品线" width="90">
+              <template slot-scope="scope">{{ displayProductLine(scope.row.channelCode || scope.row.channel, scope.row.accountSource) }}</template>
             </el-table-column>
-            <el-table-column label="千川" width="90">
-              <template slot-scope="scope">{{ formatAmount(scope.row.qcCost) }}</template>
+            <el-table-column v-if="showAdsColumn(filters.productLine)" :label="adsLabel" width="100">
+              <template slot-scope="scope">{{ formatAmount(adsDisplayCost(scope.row, filters.productLine)) }}</template>
             </el-table-column>
-            <el-table-column label="总消耗" width="100">
-              <template slot-scope="scope">{{ formatAmount(scope.row.totalCost) }}</template>
+            <el-table-column label="本地推" width="100">
+              <template slot-scope="scope">{{ formatAmount(scope.row.localCost) }}</template>
+            </el-table-column>
+            <el-table-column v-if="showQcColumn(filters.productLine)" label="千川消耗" width="100">
+              <template slot-scope="scope">{{ formatAmount(qcDisplayCost(scope.row)) }}</template>
+            </el-table-column>
+            <el-table-column label="总消耗" width="110">
+              <template slot-scope="scope">{{ formatAmount(formatTotalByProductLine(scope.row)) }}</template>
             </el-table-column>
             <el-table-column label="最近消耗" width="110">
               <template slot-scope="scope">{{ formatDate(scope.row.lastCostDate) }}</template>
@@ -186,6 +244,14 @@
               </template>
             </el-table-column>
           </el-table>
+          <div class="table-footer">
+            <el-pagination
+              layout="prev, pager, next"
+              :current-page.sync="pagination.companies.currentPage"
+              :page-size="pagination.companies.pageSize"
+              :total="filteredCompanies.length"
+              @current-change="handleCompanyPageChange" />
+          </div>
         </el-col>
 
         <el-col :span="8">
@@ -195,20 +261,26 @@
           </div>
           <el-table
             v-loading="advertiserLoading"
-            :data="filteredAdvertisers"
+            :data="pagedAdvertisers"
+            row-key="_rowKey"
             border
             size="mini">
+            <el-table-column type="index" label="序号" width="60" :index="advertiserIndex" />
             <el-table-column prop="advertiserName" label="广告主" min-width="150" />
-            <el-table-column prop="channel" label="渠道" width="80" />
-            <el-table-column prop="accountSource" label="账户" width="80" />
-            <el-table-column label="ADS" width="80">
-              <template slot-scope="scope">{{ formatAmount(scope.row.adsCost) }}</template>
+            <el-table-column label="产品线" width="90">
+              <template slot-scope="scope">{{ displayProductLine(scope.row.channelCode || scope.row.channel, scope.row.accountSource) }}</template>
             </el-table-column>
-            <el-table-column label="千川" width="80">
-              <template slot-scope="scope">{{ formatAmount(scope.row.qcCost) }}</template>
+            <el-table-column v-if="showAdsColumn(filters.productLine)" :label="adsLabel" width="100">
+              <template slot-scope="scope">{{ formatAmount(adsDisplayCost(scope.row, filters.productLine)) }}</template>
             </el-table-column>
-            <el-table-column label="总消耗" width="90">
-              <template slot-scope="scope">{{ formatAmount(scope.row.totalCost) }}</template>
+            <el-table-column label="本地推" width="100">
+              <template slot-scope="scope">{{ formatAmount(scope.row.localCost) }}</template>
+            </el-table-column>
+            <el-table-column v-if="showQcColumn(filters.productLine)" label="千川消耗" width="100">
+              <template slot-scope="scope">{{ formatAmount(qcDisplayCost(scope.row)) }}</template>
+            </el-table-column>
+            <el-table-column label="总消耗" width="110">
+              <template slot-scope="scope">{{ formatAmount(formatTotalByProductLine(scope.row)) }}</template>
             </el-table-column>
             <el-table-column label="最近消耗" width="110">
               <template slot-scope="scope">{{ formatDate(scope.row.lastCostDate) }}</template>
@@ -224,9 +296,75 @@
               </template>
             </el-table-column>
           </el-table>
+          <div class="table-footer">
+            <el-pagination
+              layout="prev, pager, next"
+              :current-page.sync="pagination.advertisers.currentPage"
+              :page-size="pagination.advertisers.pageSize"
+              :total="filteredAdvertisers.length"
+              @current-change="handleAdvertiserPageChange" />
+          </div>
         </el-col>
       </el-row>
     </el-card>
+
+    <el-dialog
+      :visible.sync="customerDialog.visible"
+      :close-on-click-modal="false"
+      width="980px">
+      <div slot="title" class="trend-title">
+        {{ customerDialog.title }}
+        <span class="header-ctx">（{{ windowLabel }} · {{ productLineLabel }}）</span>
+      </div>
+      <el-table
+        v-loading="customerDialog.loading"
+        :data="pagedCustomerDialogList"
+        row-key="_rowKey"
+        border
+        size="mini">
+        <el-table-column type="index" label="序号" width="60" :index="customerDialogIndex" />
+        <el-table-column prop="advCompanyName" label="公司" min-width="160" />
+        <el-table-column prop="saleName" label="所属销售" min-width="120">
+          <template slot-scope="scope">{{ scope.row.saleName || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="产品线" width="90">
+          <template slot-scope="scope">{{ displayProductLine(scope.row.channelCode || scope.row.channel, scope.row.accountSource) }}</template>
+        </el-table-column>
+        <el-table-column v-if="showAdsColumn(filters.productLine)" :label="adsLabel" width="100">
+          <template slot-scope="scope">{{ formatAmount(adsDisplayCost(scope.row, filters.productLine)) }}</template>
+        </el-table-column>
+        <el-table-column label="本地推" width="100">
+          <template slot-scope="scope">{{ formatAmount(scope.row.localCost) }}</template>
+        </el-table-column>
+        <el-table-column v-if="showQcColumn(filters.productLine)" label="千川消耗" width="100">
+          <template slot-scope="scope">{{ formatAmount(qcDisplayCost(scope.row)) }}</template>
+        </el-table-column>
+        <el-table-column label="总消耗" width="110">
+          <template slot-scope="scope">{{ formatAmount(formatTotalByProductLine(scope.row)) }}</template>
+        </el-table-column>
+        <el-table-column label="最近消耗" width="110">
+          <template slot-scope="scope">{{ formatDate(scope.row.lastCostDate) }}</template>
+        </el-table-column>
+        <el-table-column label="不活跃天数" width="100">
+          <template slot-scope="scope">{{ formatInactive(scope.row.inactiveDays) }}</template>
+        </el-table-column>
+        <el-table-column label="风险" width="90">
+          <template slot-scope="scope">
+            <el-tag :type="riskTagType(scope.row.riskLevel)" size="mini">
+              {{ riskLabel(scope.row.riskLevel) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="table-footer">
+        <el-pagination
+          layout="prev, pager, next"
+          :current-page.sync="customerDialogPagination.currentPage"
+          :page-size="customerDialogPagination.pageSize"
+          :total="customerDialog.list.length"
+          @current-change="handleCustomerDialogPageChange" />
+      </div>
+    </el-dialog>
 
     <el-dialog
       :visible.sync="trendDialog.visible"
@@ -234,8 +372,8 @@
       width="900px"
       @close="handleTrendClose">
       <div slot="title" class="trend-title">
-        {{ trendDialog.companyName || '客户趋势' }}
-        <span class="header-ctx">（{{ channelLabel }} · {{ accountSourceLabel }}）</span>
+        {{ trendTitle }}
+        <span class="header-ctx">（{{ productLineLabel }}）</span>
       </div>
       <div class="trend-toolbar">
         <el-radio-group v-model="trendDialog.windowType" size="mini" @change="handleTrendWindowChange">
@@ -271,31 +409,72 @@ import {
   fetchSales,
   fetchCompanies,
   fetchAdvertisers,
-  fetchCustomerTrend
+  fetchCustomerTrend,
+  fetchSaleTrend,
+  fetchDownCompanies,
+  fetchChildUserIds
 } from '@/api/oceanengineDashboard'
+import {
+  PRODUCT_LINE_OPTIONS,
+  mapProductLineToParams,
+  productLineLabel,
+  displayProductLine as mapDisplayProductLine,
+  adsLabelByProductLine,
+  showAdsColumn,
+  showQcColumn,
+  adsDisplayCost,
+  qcDisplayCost,
+  totalByProductLine
+} from './productLineHelper'
 
 export default {
   name: 'OceanengineSalesDashboard',
   data() {
     return {
+      productLineOptions: PRODUCT_LINE_OPTIONS,
       filters: {
         windowType: '7',
         customWindow: 30,
-        channel: 'ALL',
-        accountSource: 'ALL',
+        productLine: 'ALL',
         onlySelf: false,
         riskLevel: 'ALL'
       },
       overview: {},
       overviewLoading: false,
+      selfOverview: {},
+      selfOverviewLoading: false,
+      lineOverviews: {
+        AD: {},
+        LOCAL: {},
+        QIANCHUAN: {}
+      },
+      lineOverviewLoading: false,
       sales: [],
       companies: [],
       advertisers: [],
       salesLoading: false,
       companyLoading: false,
       advertiserLoading: false,
+      allowedSaleUserIds: [],
       selectedSaleUserId: null,
       selectedAdvCompanyId: null,
+      pagination: {
+        sales: { currentPage: 1, pageSize: 10 },
+        companies: { currentPage: 1, pageSize: 10 },
+        advertisers: { currentPage: 1, pageSize: 10 }
+      },
+      customerDialog: {
+        visible: false,
+        loading: false,
+        title: '',
+        type: 'health',
+        riskLevel: '',
+        list: []
+      },
+      customerDialogPagination: {
+        currentPage: 1,
+        pageSize: 10
+      },
       trendDialog: {
         visible: false,
         loading: false,
@@ -303,12 +482,19 @@ export default {
         windowType: '30',
         customWindow: 30,
         advCompanyId: null,
-        companyName: ''
+        companyName: '',
+        mode: 'company',
+        saleUserId: null,
+        saleName: ''
       },
       trendChart: null
     }
   },
   computed: {
+    isAdminUser() {
+      const info = this.$store.getters.userInfo || {}
+      return !!(info.isAdmin || info.is_admin || info.admin || info.superAdmin || info.isSuperAdmin || info.username === 'admin')
+    },
     effectiveWindow() {
       const win = this.filters.windowType === 'custom'
         ? Number(this.filters.customWindow || 0)
@@ -318,21 +504,35 @@ export default {
     windowLabel() {
       return `近${this.effectiveWindow}天`
     },
-    channelLabel() {
-      return {
-        ALL: '全部渠道',
-        ADS: '巨量ADS',
-        QIANCHUAN: '千川'
-      }[this.filters.channel] || '全部渠道'
+    productLineLabel() {
+      return productLineLabel(this.filters.productLine)
     },
-    accountSourceLabel() {
-      return this.formatAccountSource(this.filters.accountSource || 'ALL')
+    adsLabel() {
+      return adsLabelByProductLine(this.filters.productLine)
+    },
+    trendTitle() {
+      if (this.trendDialog.mode === 'sale') {
+        return `${this.trendDialog.saleName || '销售'}业绩趋势`
+      }
+      return this.trendDialog.companyName || '客户趋势'
     },
     filteredCompanies() {
       return this.applyRiskFilter(this.companies)
     },
+    pagedCompanies() {
+      return this.getPagedData(this.filteredCompanies, this.pagination.companies)
+    },
     filteredAdvertisers() {
       return this.applyRiskFilter(this.advertisers)
+    },
+    pagedAdvertisers() {
+      return this.getPagedData(this.filteredAdvertisers, this.pagination.advertisers)
+    },
+    pagedSales() {
+      return this.getPagedData(this.sales, this.pagination.sales)
+    },
+    pagedCustomerDialogList() {
+      return this.getPagedData(this.customerDialog.list, this.customerDialogPagination)
     },
     selectedSaleLabel() {
       const target = (this.sales || []).find(item => item.saleUserId === this.selectedSaleUserId)
@@ -345,10 +545,31 @@ export default {
     },
     currentUserId() {
       const info = this.$store.getters.userInfo
-      return info && (info.userId || info.user_id)
+      return info && (info.userId || info.user_id || info.id)
+    },
+    aggregatedOverview() {
+      if (!this.sales || this.sales.length === 0) return this.overview || {}
+      const sum = (key) => this.sales.reduce((acc, cur) => acc + Number(cur[key] || 0), 0)
+      return Object.assign({}, this.overview || {}, {
+        totalCost: sum('totalCost'),
+        prevTotalCost: this.overview.prevTotalCost,
+        totalCompanyCount: sum('companyCount'),
+        totalAdvertiserCount: sum('advertiserCount')
+      })
+    },
+    lineOverviewList() {
+      return [
+        { key: 'AD', label: 'AD', current: this.lineOverviews.AD.totalCost, previous: this.lineOverviews.AD.prevTotalCost },
+        { key: 'LOCAL', label: '本地推', current: this.lineOverviews.LOCAL.totalCost, previous: this.lineOverviews.LOCAL.prevTotalCost },
+        { key: 'QIANCHUAN', label: '千川', current: this.lineOverviews.QIANCHUAN.totalCost, previous: this.lineOverviews.QIANCHUAN.prevTotalCost }
+      ]
     }
   },
-  created() {
+  async created() {
+    if (!this.isAdminUser) {
+      this.filters.onlySelf = true
+    }
+    await this.loadAllowedSaleUsers()
     this.handleFilterChange()
   },
   mounted() {
@@ -360,8 +581,12 @@ export default {
   },
   methods: {
     navigateToCustomers() {
-      const q = this.buildFilterParams()
+      const q = {
+        window: this.effectiveWindow,
+        productLine: this.filters.productLine
+      }
       if (this.selectedSaleUserId) q.saleUserId = this.selectedSaleUserId
+      if (this.filters.riskLevel && this.filters.riskLevel !== 'ALL') q.riskLevel = this.filters.riskLevel
       this.$router.push({ path: '/oceanengine/customers', query: q })
     },
     handleCustomWindowChange() {
@@ -371,27 +596,42 @@ export default {
       this.handleFilterChange()
     },
     handleRiskChange() {
-      // 仅本地过滤列表
+      this.pagination.companies.currentPage = 1
+      this.pagination.advertisers.currentPage = 1
+      const filtered = this.filteredCompanies
+      const keep = filtered.find(item => item.advCompanyId === this.selectedAdvCompanyId)
+      this.selectedAdvCompanyId = keep ? keep.advCompanyId : (filtered[0] && filtered[0].advCompanyId) || null
+      this.loadAdvertisers()
     },
     handleFilterChange() {
+      this.pagination.sales.currentPage = 1
+      this.pagination.companies.currentPage = 1
+      this.pagination.advertisers.currentPage = 1
       this.selectedSaleUserId = null
       this.selectedAdvCompanyId = null
       this.companies = []
       this.advertisers = []
       this.loadOverview()
+      this.loadSelfOverview()
+      this.loadLineOverviews()
       this.loadSales()
-      if (this.trendDialog.visible && this.trendDialog.advCompanyId) {
+      if (this.trendDialog.visible && (this.trendDialog.advCompanyId || this.trendDialog.saleUserId)) {
         this.loadTrend()
       }
     },
     buildFilterParams(windowOverride) {
+      const base = mapProductLineToParams(this.filters.productLine)
       const params = {
         window: windowOverride || this.effectiveWindow,
-        channel: this.filters.channel,
-        accountSource: this.filters.accountSource
+        channel: base.channel,
+        accountSource: base.accountSource
       }
-      if (this.filters.onlySelf && this.currentUserId) {
-        params.saleUserId = this.currentUserId
+      if (this.isAdminUser) {
+        if (this.filters.onlySelf && this.currentUserId) {
+          params.saleUserId = this.currentUserId
+        }
+      } else if (this.currentUserId) {
+        params.saleUserId = this.selectedSaleUserId || this.currentUserId
       }
       return params
     },
@@ -409,6 +649,26 @@ export default {
       }
       return params
     },
+    async loadAllowedSaleUsers() {
+      if (this.isAdminUser) {
+        this.allowedSaleUserIds = null
+        return
+      }
+      if (!this.currentUserId) {
+        this.allowedSaleUserIds = []
+        return
+      }
+      const ids = []
+      if (this.currentUserId) ids.push(Number(this.currentUserId))
+      try {
+        const res = await fetchChildUserIds(this.currentUserId)
+        const list = res.data || []
+        list.forEach(id => ids.push(Number(id)))
+      } catch (e) {
+        // ignore
+      }
+      this.allowedSaleUserIds = Array.from(new Set(ids.filter(Boolean)))
+    },
     async loadOverview() {
       this.overviewLoading = true
       try {
@@ -421,18 +681,68 @@ export default {
         this.overviewLoading = false
       }
     },
+    async loadSelfOverview() {
+      if (!this.currentUserId) {
+        this.selfOverview = {}
+        return
+      }
+      this.selfOverviewLoading = true
+      try {
+        const params = Object.assign(
+          { window: this.effectiveWindow, saleUserId: this.currentUserId },
+          mapProductLineToParams('ALL')
+        )
+        const res = await fetchOverview(params)
+        this.selfOverview = res.data || {}
+      } catch (e) {
+        this.selfOverview = {}
+      } finally {
+        this.selfOverviewLoading = false
+      }
+    },
+    async loadLineOverviews() {
+      const targets = ['AD', 'LOCAL', 'QIANCHUAN']
+      this.lineOverviewLoading = true
+      try {
+        const resArr = await Promise.all(targets.map(pl => fetchOverview({
+          window: this.effectiveWindow,
+          ...mapProductLineToParams(pl)
+        })))
+        targets.forEach((pl, idx) => {
+          this.lineOverviews[pl] = (resArr[idx] && resArr[idx].data) || {}
+        })
+      } catch (e) {
+        targets.forEach(pl => {
+          this.lineOverviews[pl] = {}
+        })
+      } finally {
+        this.lineOverviewLoading = false
+      }
+    },
     loadSales() {
       this.salesLoading = true
       fetchSales(this.buildFilterParams()).then(res => {
         const data = res.data || {}
         const list = Array.isArray(data) ? data : (data.list || data.records || [])
-        this.sales = list
-        const keep = list.find(item => item.saleUserId === this.selectedSaleUserId)
-        this.selectedSaleUserId = keep ? keep.saleUserId : (list[0] && list[0].saleUserId) || null
+        let filtered = this.filterSalesByPermission(list)
+        if ((!filtered || filtered.length === 0) && this.currentUserId) {
+          const info = this.$store.getters.userInfo || {}
+          filtered = [{
+            saleUserId: this.currentUserId,
+            saleName: info.realname || info.realName || info.username || '我',
+            crmRealname: info.realname || info.realName || ''
+          }]
+        }
+        this.sales = filtered
+        const keep = filtered.find(item => item.saleUserId === this.selectedSaleUserId)
+        this.selectedSaleUserId = keep ? keep.saleUserId : (filtered[0] && filtered[0].saleUserId) || this.currentUserId || null
+        this.pagination.sales.currentPage = 1
         this.loadCompanies()
       }).catch(() => {
         this.sales = []
-        this.selectedSaleUserId = null
+        this.selectedSaleUserId = this.currentUserId || null
+        this.companies = []
+        this.advertisers = []
       }).finally(() => {
         this.salesLoading = false
       })
@@ -441,17 +751,31 @@ export default {
       this.companies = []
       this.advertisers = []
       if (!this.selectedSaleUserId && !this.filters.onlySelf) {
+        if (this.currentUserId) {
+          this.selectedSaleUserId = this.currentUserId
+        } else {
+        this.companyLoading = false
         return
+        }
       }
       const params = this.buildCompanyParams()
       this.companyLoading = true
       fetchCompanies(params).then(res => {
         const data = res.data || {}
         const list = Array.isArray(data) ? data : (data.list || data.records || [])
-        this.companies = list
-        const filtered = this.applyRiskFilter(list)
+        const normalized = (list || []).map((item, index) => {
+          const companyId = item && item.advCompanyId ? String(item.advCompanyId) : 'unknown'
+          const channel = item && (item.channelCode || item.channel) ? String(item.channelCode || item.channel) : ''
+          const source = item && item.accountSource ? String(item.accountSource) : ''
+          const baseKey = [companyId, channel, source].filter(Boolean).join('-') || companyId
+          return { ...item, _rowKey: `${baseKey}-${index}` }
+        })
+        this.companies = normalized
+        const filtered = this.applyRiskFilter(normalized)
         const keep = filtered.find(item => item.advCompanyId === this.selectedAdvCompanyId)
         this.selectedAdvCompanyId = keep ? keep.advCompanyId : (filtered[0] && filtered[0].advCompanyId) || null
+        this.pagination.companies.currentPage = 1
+        this.pagination.advertisers.currentPage = 1
         this.loadAdvertisers()
       }).catch(() => {
         this.companies = []
@@ -472,28 +796,54 @@ export default {
       fetchAdvertisers(params).then(res => {
         const data = res.data || {}
         const list = Array.isArray(data) ? data : (data.list || data.records || [])
-        this.advertisers = list
+        this.advertisers = (list || []).map((item, index) => {
+          const advertiserId = item && item.advertiserId ? String(item.advertiserId) : 'unknown'
+          const channel = item && (item.channelCode || item.channel) ? String(item.channelCode || item.channel) : ''
+          const source = item && item.accountSource ? String(item.accountSource) : ''
+          const baseKey = [advertiserId, channel, source].filter(Boolean).join('-') || advertiserId
+          return { ...item, _rowKey: `${baseKey}-${index}` }
+        })
+        this.pagination.advertisers.currentPage = 1
       }).catch(() => {
         this.advertisers = []
       }).finally(() => {
         this.advertiserLoading = false
       })
     },
+    filterSalesByPermission(list) {
+      if (this.isAdminUser || !this.allowedSaleUserIds || this.allowedSaleUserIds.length === 0) return list || []
+      let filtered = (list || []).filter(item => this.allowedSaleUserIds.includes(item.saleUserId))
+      if (this.filters.onlySelf && this.currentUserId) {
+        filtered = filtered.filter(item => item.saleUserId === this.currentUserId)
+      }
+      if (!filtered.length && this.currentUserId) {
+        const fallback = (list || []).find(item => item.saleUserId === this.currentUserId)
+        if (fallback) filtered = [fallback]
+        else {
+          const info = this.$store.getters.userInfo || {}
+          filtered = [{
+            saleUserId: this.currentUserId,
+            saleName: info.realname || info.realName || info.username || '我',
+            crmRealname: info.realname || info.realName || ''
+          }]
+        }
+      }
+      return filtered
+    },
     handleSaleRowClick(row) {
       if (!row || !row.saleUserId) return
       if (row.saleUserId === this.selectedSaleUserId) return
       this.selectedSaleUserId = row.saleUserId
+      this.pagination.companies.currentPage = 1
+      this.pagination.advertisers.currentPage = 1
       this.loadCompanies()
     },
     handleCompanyRowClick(row) {
       if (!row || !row.advCompanyId) return
-      if (row.advCompanyId === this.selectedAdvCompanyId) {
-        this.openTrend(row)
-        return
-      }
+      if (row.advCompanyId === this.selectedAdvCompanyId) return
       this.selectedAdvCompanyId = row.advCompanyId
+      this.pagination.advertisers.currentPage = 1
       this.loadAdvertisers()
-      this.openTrend(row)
     },
     saleRowClass({ row }) {
       return row.saleUserId === this.selectedSaleUserId ? 'is-selected-row' : ''
@@ -506,6 +856,79 @@ export default {
       if (target === 'ALL') return list || []
       return (list || []).filter(item => (item.riskLevel || '').toUpperCase() === target)
     },
+    showAdsColumn(productLine) {
+      return showAdsColumn(productLine)
+    },
+    showQcColumn(productLine) {
+      return showQcColumn(productLine)
+    },
+    adsDisplayCost(row, productLine) {
+      return adsDisplayCost(row, productLine || this.filters.productLine)
+    },
+    qcDisplayCost(row) {
+      return qcDisplayCost(row)
+    },
+    formatTotalByProductLine(row) {
+      return totalByProductLine(row, this.filters.productLine)
+    },
+    getPagedData(list, pager) {
+      const page = (pager && pager.currentPage) || 1
+      const size = (pager && pager.pageSize) || 10
+      const start = (page - 1) * size
+      return (list || []).slice(start, start + size)
+    },
+    salesIndex(index) {
+      return (this.pagination.sales.currentPage - 1) * this.pagination.sales.pageSize + index + 1
+    },
+    companyIndex(index) {
+      return (this.pagination.companies.currentPage - 1) * this.pagination.companies.pageSize + index + 1
+    },
+    advertiserIndex(index) {
+      return (this.pagination.advertisers.currentPage - 1) * this.pagination.advertisers.pageSize + index + 1
+    },
+    overviewIndex(index) {
+      return index + 1
+    },
+    customerDialogIndex(index) {
+      return (this.customerDialogPagination.currentPage - 1) * this.customerDialogPagination.pageSize + index + 1
+    },
+    handleCustomerDialogPageChange(page) {
+      this.customerDialogPagination.currentPage = page
+    },
+    openCustomerDialog(type, riskLevel) {
+      this.customerDialog.type = type
+      this.customerDialog.riskLevel = riskLevel || ''
+      this.customerDialog.title = type === 'down' ? '下滑客户明细' : '客户健康明细'
+      this.customerDialogPagination.currentPage = 1
+      this.customerDialog.visible = true
+      this.loadCustomerDialog()
+    },
+    async loadCustomerDialog() {
+      this.customerDialog.loading = true
+      try {
+        const res = this.customerDialog.type === 'down'
+          ? await fetchDownCompanies(this.buildFilterParams())
+          : await fetchCompanies(this.buildFilterParams())
+        const data = res.data || {}
+        let list = Array.isArray(data) ? data : (data.list || data.records || [])
+        if (this.customerDialog.type === 'down') {
+          // down list is already filtered by backend
+        } else if (this.customerDialog.riskLevel) {
+          list = list.filter(item => (item.riskLevel || '').toUpperCase() === this.customerDialog.riskLevel)
+        }
+        this.customerDialog.list = (list || []).map((item, index) => {
+          const companyId = item && item.advCompanyId ? String(item.advCompanyId) : 'unknown'
+          const channel = item && (item.channelCode || item.channel) ? String(item.channelCode || item.channel) : ''
+          const source = item && item.accountSource ? String(item.accountSource) : ''
+          const baseKey = [companyId, channel, source].filter(Boolean).join('-') || companyId
+          return { ...item, _rowKey: `${baseKey}-${index}` }
+        })
+      } catch (e) {
+        this.customerDialog.list = []
+      } finally {
+        this.customerDialog.loading = false
+      }
+    },
     formatAccountSource(val) {
       const map = {
         ALL: '全部来源',
@@ -517,6 +940,9 @@ export default {
         QIANCHUAN: '千川'
       }
       return map[val] || (val || '-')
+    },
+    displayProductLine(channelCode, accountSource) {
+      return mapDisplayProductLine(channelCode, accountSource)
     },
     formatAmount(val) {
       if (val === null || val === undefined || val === '') return '-'
@@ -565,8 +991,8 @@ export default {
     calcChange(current, previous) {
       const cur = Number(current || 0)
       const pre = Number(previous || 0)
-      if (pre <= 0) {
-        return { direction: 'flat', text: '-' }
+      if (pre === 0) {
+        return { direction: 'flat', text: '--' }
       }
       const rate = ((cur - pre) / pre) * 100
       const text = `${rate >= 0 ? '+' : ''}${rate.toFixed(1)}%`
@@ -577,8 +1003,25 @@ export default {
     },
     openTrend(row) {
       if (!row || !row.advCompanyId) return
+      this.trendDialog.mode = 'company'
       this.trendDialog.advCompanyId = row.advCompanyId
       this.trendDialog.companyName = row.advCompanyName || '客户趋势'
+      this.trendDialog.saleUserId = null
+      this.trendDialog.saleName = ''
+      this.trendDialog.windowType = this.filters.windowType
+      this.trendDialog.customWindow = this.filters.customWindow
+      this.trendDialog.visible = true
+      this.$nextTick(() => {
+        this.loadTrend()
+      })
+    },
+    openSaleTrend(row) {
+      if (!row || !row.saleUserId) return
+      this.trendDialog.mode = 'sale'
+      this.trendDialog.saleUserId = row.saleUserId
+      this.trendDialog.saleName = row.saleName || row.crmRealname || '销售'
+      this.trendDialog.advCompanyId = null
+      this.trendDialog.companyName = ''
       this.trendDialog.windowType = this.filters.windowType
       this.trendDialog.customWindow = this.filters.customWindow
       this.trendDialog.visible = true
@@ -601,12 +1044,17 @@ export default {
       }
     },
     loadTrend() {
+      if (this.trendDialog.mode === 'sale') {
+        this.loadSaleTrend()
+        return
+      }
       if (!this.trendDialog.advCompanyId) return
       this.trendDialog.loading = true
+      const base = mapProductLineToParams(this.filters.productLine)
       fetchCustomerTrend(this.trendDialog.advCompanyId, {
         window: this.trendWindowValue(),
-        channel: this.filters.channel,
-        accountSource: this.filters.accountSource
+        channel: base.channel,
+        accountSource: base.accountSource
       }).then(res => {
         this.trendDialog.data = res.data || []
         this.$nextTick(() => {
@@ -619,25 +1067,56 @@ export default {
         this.trendDialog.loading = false
       })
     },
+    async loadSaleTrend() {
+      if (!this.trendDialog.saleUserId) return
+      this.trendDialog.loading = true
+      const base = mapProductLineToParams(this.filters.productLine)
+      try {
+        const res = await fetchSaleTrend(this.trendDialog.saleUserId, {
+          window: this.trendWindowValue(),
+          channel: base.channel,
+          accountSource: base.accountSource
+        })
+        this.trendDialog.data = res.data || []
+        this.$nextTick(() => {
+          this.renderTrendChart()
+        })
+      } catch (e) {
+        this.trendDialog.data = []
+        this.renderTrendChart()
+      } finally {
+        this.trendDialog.loading = false
+      }
+    },
     renderTrendChart() {
       this.ensureTrendChart()
       if (!this.trendChart) return
       const data = this.trendDialog.data || []
       const dates = data.map(item => this.formatDate(item.statDate))
-      const ads = data.map(item => Number(item.adsCost || 0))
-      const qc = data.map(item => Number(item.qcCost || 0))
-      const total = data.map(item => Number(item.totalCost || 0))
+      const ads = data.map(item => adsDisplayCost(item, this.filters.productLine))
+      const local = data.map(item => Number(item.localCost || 0))
+      const qc = data.map(item => qcDisplayCost(item))
+      const total = data.map(item => totalByProductLine(item, this.filters.productLine))
+      const legend = ['总消耗', '本地推']
+      const series = [
+        { name: '总消耗', type: 'line', smooth: true, data: total, showSymbol: false },
+        { name: '本地推', type: 'line', smooth: true, data: local, showSymbol: false }
+      ]
+      if (this.showAdsColumn(this.filters.productLine)) {
+        legend.push(this.adsLabel)
+        series.push({ name: this.adsLabel, type: 'line', smooth: true, data: ads, showSymbol: false })
+      }
+      if (this.showQcColumn(this.filters.productLine)) {
+        legend.push('千川')
+        series.push({ name: '千川', type: 'line', smooth: true, data: qc, showSymbol: false })
+      }
       const option = {
         tooltip: { trigger: 'axis' },
-        legend: { data: ['总消耗', 'ADS', '千川'] },
+        legend: { data: legend },
         grid: { top: 30, left: 50, right: 20, bottom: 50 },
         xAxis: { type: 'category', boundaryGap: false, data: dates },
         yAxis: { type: 'value', name: '消耗(元)' },
-        series: [
-          { name: '总消耗', type: 'line', smooth: true, data: total, showSymbol: false },
-          { name: 'ADS', type: 'line', smooth: true, data: ads, showSymbol: false },
-          { name: '千川', type: 'line', smooth: true, data: qc, showSymbol: false }
-        ]
+        series
       }
       this.trendChart.setOption(option, true)
       this.trendChart.resize()
@@ -650,7 +1129,19 @@ export default {
       this.trendDialog.visible = false
       this.trendDialog.data = []
       this.trendDialog.advCompanyId = null
+      this.trendDialog.saleUserId = null
+      this.trendDialog.saleName = ''
+      this.trendDialog.mode = 'company'
       this.teardownChart()
+    },
+    handleSalesPageChange(page) {
+      this.pagination.sales.currentPage = page
+    },
+    handleCompanyPageChange(page) {
+      this.pagination.companies.currentPage = page
+    },
+    handleAdvertiserPageChange(page) {
+      this.pagination.advertisers.currentPage = page
     },
     teardownChart() {
       if (this.trendChart) {
@@ -703,6 +1194,9 @@ export default {
   .kpi-card {
     min-height: 156px;
   }
+  .kpi-card.is-clickable {
+    cursor: pointer;
+  }
   .kpi-title {
     font-weight: 600;
     color: #303133;
@@ -717,6 +1211,10 @@ export default {
     font-size: 26px;
     font-weight: 700;
     color: #303133;
+    &.is-link {
+      text-decoration: underline;
+      cursor: pointer;
+    }
   }
   .kpi-change {
     margin-top: 6px;
@@ -763,6 +1261,10 @@ export default {
       font-size: 18px;
       font-weight: 700;
       color: #303133;
+      &.is-link {
+        text-decoration: underline;
+        cursor: pointer;
+      }
     }
     &.success {
       background: #f0f9eb;
@@ -843,6 +1345,16 @@ export default {
   }
   .trend-empty {
     margin-top: 12px;
+  }
+  .table-footer {
+    margin-top: 8px;
+    text-align: right;
+  }
+  .overview-table {
+    margin-top: 12px;
+  }
+  .yoy-text {
+    color: #909399;
   }
 }
 </style>

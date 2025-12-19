@@ -59,7 +59,7 @@ export const MODULE_REGISTRY = {
     type: 12,
     module: 'oceanengine',
     path: '/oceanengine',
-    icon: 'wk wk-monitor',
+    icon: 'wk wk-performance',
     fontSize: '17px'
   },
   calendar: {

@@ -4,20 +4,6 @@ import request from '@/utils/request'
  * 查询版本
  * @param {*} data
  */
-export function crmCheckVersionAPI() {
-  return request({
-    url: 'checkVersion',
-    method: 'post',
-    headers: {
-      'Content-Type': 'application/json;charset=UTF-8'
-    }
-  })
-}
-
-/**
- * 查询数据库
- * @param {*} data
- */
 export function crmQueryDatabaseAPI() {
   return request({
     url: 'queryDatabase',
@@ -117,4 +103,3 @@ export function loginWKAPI(data) {
     }
   )
 }
-

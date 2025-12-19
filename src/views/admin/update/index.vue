@@ -193,7 +193,6 @@
 <script>
 import Lockr from 'lockr'
 import {
-  crmCheckVersionAPI,
   crmQueryDatabaseAPI,
   crmBackupDatabaseAPI,
   crmUpdateAPI,
@@ -284,10 +283,6 @@ export default {
     }
   },
 
-  created() {
-    this.checkHandle()
-  },
-
   methods: {
     loginHandle(formName) {
       this.$refs[formName].validate((valid) => {
@@ -318,38 +313,14 @@ export default {
       this.loginForm.password = ''
     },
 
-    async checkHandle() {
-      this.checkLoading = true
-      const { data } = await crmCheckVersionAPI()
+    checkHandle() {
+      this.$message({
+        showClose: true,
+        message: '在线检查更新已停用，请联系管理员确认版本状态',
+        type: 'warning'
+      })
       this.checkLoading = false
-      this.isNewest = this.checkIsNewest(data.version, data.serverVersion)
-
-      this.version = data.version
-      this.serverVersion = data.serverVersion
-
-      this.isCheckUpdate = true
-    },
-
-    checkIsNewest(preVersion, lastVersion) {
-      const sources = preVersion.split('.')
-      const dests = lastVersion.split('.')
-      const maxL = Math.max(sources.length, dests.length)
-      let result = true
-      for (let i = 0; i < maxL; i++) {
-        const preValue = sources.length > i ? sources[i] : 0
-        const preNum = isNaN(Number(preValue)) ? preValue.charCodeAt() : Number(preValue)
-        const lastValue = dests.length > i ? dests[i] : 0
-        const lastNum = isNaN(Number(lastValue)) ? lastValue.charCodeAt() : Number(lastValue)
-        if (preNum < lastNum) {
-          result = false
-          break
-        } else if (preNum > lastNum) {
-          result = true
-          break
-        }
-      }
-      console.log(preVersion, lastVersion, result)
-      return result
+      this.isCheckUpdate = false
     },
 
     async queryDatabaseHandle() {

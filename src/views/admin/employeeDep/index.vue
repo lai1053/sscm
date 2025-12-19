@@ -2,7 +2,7 @@
   <div class="employee-dep-management">
     <xr-header
       :content.sync="searchInput"
-      placeholder="请输入员工名称/手机号"
+      placeholder="请输入员工名称/账号"
       show-search
       icon-class="wk wk-s-seas"
       icon-color="#26D4DA"
@@ -317,7 +317,7 @@
           :model="resetUserNameForm"
           :rules="dialogRules">
           <el-form-item
-            label="新账号（手机号）"
+            label="新账号（字母/数字）"
             prop="username">
             <el-input v-model="resetUserNameForm.username" />
           </el-form-item>
@@ -558,7 +558,9 @@ import EditDepDialog from './components/EditDepDialog'
 import WkUserSelect from '@/components/NewCom/WkUserSelect'
 import WkDepSelect from '@/components/NewCom/WkDepSelect'
 
-import { chinaMobileRegex, objDeepCopy } from '@/utils'
+import { objDeepCopy } from '@/utils'
+
+const loginNameRegex = /^[A-Za-z0-9]+$/
 
 export default {
   /** 系统管理 的 员工部门管理 */
@@ -641,7 +643,7 @@ export default {
       // selectModel: '', // 状态值 用于筛选
       /** 列表 */
       fieldList: [
-        { field: 'username', value: '手机号（登录名）', width: '150' },
+        { field: 'username', value: '登录账号', width: '150' },
         { field: 'sex', value: '性别', type: 'select', width: '50' },
         { field: 'email', value: '邮箱', width: '150' },
         { field: 'deptName', value: '部门', type: 'select', width: '100' },
@@ -716,10 +718,10 @@ export default {
           }
         ],
         username: [
-          { required: true, message: '手机号码不能为空', trigger: 'blur' },
+          { required: true, message: '登录账号不能为空', trigger: 'blur' },
           {
-            pattern: chinaMobileRegex,
-            message: '目前只支持中国大陆的手机号码',
+            pattern: loginNameRegex,
+            message: '登录账号仅支持字母和数字',
             trigger: 'blur'
           }
         ],
@@ -924,7 +926,7 @@ export default {
      * 能进行滑动验证
      */
     canSlideVerify() {
-      return chinaMobileRegex.test(this.resetUserNameForm.username)
+      return loginNameRegex.test(this.resetUserNameForm.username)
     },
 
     /**
@@ -1424,7 +1426,7 @@ export default {
         this.isManageReset = false
         this.slideVerifyPass = false
         this.slideVerifyShow = false
-        this.resetUserNameForm = {
+      this.resetUserNameForm = {
           username: '',
           password: ''
         }
@@ -1559,7 +1561,7 @@ export default {
 
     getSmsCode() {
       if (!this.canSlideVerify) {
-        this.$message.error('请输入正确的手机号')
+        this.$message.error('请输入正确的登录账号（仅支持字母和数字）')
         return
       }
 
@@ -2137,4 +2139,3 @@ export default {
 }
 @import '../styles/table.scss';
 </style>
-

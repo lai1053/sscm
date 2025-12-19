@@ -1,6 +1,7 @@
 import {
   asyncRouterMap
 } from '@/router'
+import store from '@/store'
 import Vue from 'vue'
 import { adminGroupsTypeListAPI } from '@/api/admin/role'
 
@@ -13,12 +14,16 @@ function checkAuth(router, authInfo) {
   // 判断当前路由在权限数组中是否存在
   if (router.meta) {
     const metaInfo = router.meta
+    if (metaInfo.adminOnly) {
+      const userInfo = store.getters.userInfo || {}
+      const isAdmin = !!(userInfo.isAdmin || userInfo.is_admin || userInfo.admin || userInfo.superAdmin || userInfo.isSuperAdmin)
+      if (!isAdmin) return false
+    }
     if (!metaInfo.requiresAuth) {
       return true
     } else {
       if (metaInfo.permissions) {
         authInfo = { ...authInfo }
-        console.log('authInfo = ', authInfo)
         return forCheckPermission(metaInfo.permissions, authInfo)
       } else if (metaInfo.permissionList) { // 一个路由受多个权限判断
         for (let index = 0; index < metaInfo.permissionList.length; index++) {

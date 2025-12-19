@@ -238,8 +238,14 @@ export default {
   computed: {
     ...mapGetters([
       'userInfo',
+      'manage',
       'collapse'
     ]),
+    // 超级管理员识别：来自 manage 状态
+    isSuperAdmin() {
+      const manage = this.manage || {}
+      return manage.isAdmin === 1 || manage.isAdmin === '1' || manage.admin === 1 || manage.admin === true
+    },
     // 如果只筛选一个人则头像显示当前被筛选人的头像，否则显示默认错误头像
     avatarData() {
       if (this.filterValue.dataType === 'custom') {
@@ -303,7 +309,11 @@ export default {
   },
   created() {
     const oldDataType = Lockr.get('crmWorkbenchRangeFilter')
-    if (oldDataType) {
+    if (this.isSuperAdmin) {
+      this.filterDataType = 4
+      this.filterValue.dataType = 4
+      Lockr.set('crmWorkbenchRangeFilter', 4)
+    } else if (oldDataType) {
       this.filterDataType = oldDataType
       this.filterValue.dataType = oldDataType
     }

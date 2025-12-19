@@ -98,7 +98,6 @@
 
 <script>
 import { systemMessageUnreadCountAPI } from '@/api/common'
-// import { crmCheckVersionAPI } from '@/api/admin/update'
 
 import SystemMessage from './SystemMessage'
 import NavManager from './NavManager'
@@ -170,21 +169,10 @@ export default {
         label: '基本信息',
         icon: 'wk wk-user'
       }, {
-        command: 'help',
-        divided: true,
-        label: '帮助中心',
-        icon: 'wk wk-help'
-      }, {
         command: 'logOut',
         divided: false,
         label: '退出登录',
         icon: 'wk wk-logout'
-      }, {
-        command: 'version',
-        divided: false,
-        label: `版本 ${WKConfig.version}`,
-        icon: 'wk wk-version',
-        disabled: true
       }]
     },
     allItemsObj() {
@@ -217,12 +205,6 @@ export default {
   },
   created() {
     this.getHeaderModule()
-    // const _this = this
-    // async function decorator() {
-    //   var { data } = await crmCheckVersionAPI()
-    //   _this.isNewest = _this.checkIsNewest(data.version, data.serverVersion)
-    // }
-    // decorator()
   },
 
   mounted() {

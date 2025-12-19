@@ -131,6 +131,16 @@
             </wk-field-view>
           </template>
         </el-table-column>
+        <el-table-column
+          prop="oeCost7d"
+          label="巨量广告消耗（近7天）"
+          width="160"
+          align="right"
+          show-overflow-tooltip>
+          <template slot-scope="scope">
+            {{ formatOeCost(scope.row.oeCost7d) }}
+          </template>
+        </el-table-column>
         <el-table-column/>
         <el-table-column
           label="关注"
@@ -208,6 +218,7 @@ import { mapGetters } from 'vuex'
 import CRMAllDetail from '@/views/crm/components/CRMAllDetail'
 import BusinessCheck from './components/BusinessCheck' // 相关商机
 import TableMixin from '../mixins/Table'
+import { separator } from '@/filters/vueNumeralFilter/filters'
 
 export default {
   /** 客户管理 的 客户列表 */
@@ -280,6 +291,11 @@ export default {
     this.$refs.elMenu.activeIndex = this.crmType
   },
   methods: {
+    formatOeCost(value) {
+      const num = Number(value)
+      if (isNaN(num)) return separator(0)
+      return separator(num)
+    },
     /**
      * 左侧菜单选择
      */
